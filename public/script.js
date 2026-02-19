@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const convertBtn = document.getElementById('convertBtn');
     const convertForm = document.getElementById('convertForm');
     const resultDiv = document.getElementById('result');
+    const localConvertBtn = document.getElementById('localConvertBtn');
 
     const formatOptions = {
         'image/png': ['jpg', 'webp'],
@@ -77,7 +78,31 @@ document.addEventListener('DOMContentLoaded', () => {
             targetFormat.disabled = true;
             convertBtn.disabled = true;
         }
+
+        checkLocalSupport();
     }
+
+    function checkLocalSupport() {
+        const isPdfTarget = targetFormat.value === 'pdf';
+        let allImages = true;
+
+        for (let i = 0; i < fileInput.files.length; i++) {
+            if (!fileInput.files[i].type.startsWith('image/')) {
+                allImages = false;
+                break;
+            }
+        }
+
+        if (allImages && isPdfTarget && fileInput.files.length > 0) {
+            localConvertBtn.classList.remove('hidden');
+            localConvertBtn.disabled = false;
+        } else {
+            localConvertBtn.classList.add('hidden');
+            localConvertBtn.disabled = true;
+        }
+    }
+
+    targetFormat.addEventListener('change', checkLocalSupport);
 
     convertForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -130,4 +155,84 @@ document.addEventListener('DOMContentLoaded', () => {
             resultDiv.classList.remove('hidden');
         }
     });
+
+    localConvertBtn.addEventListener('click', async () => {
+        if (fileInput.files.length === 0) {
+            alert('Lütfen dosya seçin.');
+            return;
+        }
+
+        localConvertBtn.disabled = true;
+        localConvertBtn.textContent = 'Tarayıcıda Dönüştürülüyor...';
+        convertBtn.disabled = true;
+        resultDiv.classList.add('hidden');
+        resultDiv.innerHTML = '';
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'p',
+                unit: 'px',
+                format: 'a4'
+            });
+
+            // A4 size in px (at 72 dpi) is roughly 595 x 842. We'll use jsPDF's internal sizing
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+
+            for (let i = 0; i < fileInput.files.length; i++) {
+                const file = fileInput.files[i];
+                const imgData = await readFileAsDataURL(file);
+
+                const imgProps = await getImageProperties(imgData);
+
+                // Calculate scale to fit within page while maintaining aspect ratio
+                const scale = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
+
+                const width = imgProps.width * scale;
+                const height = imgProps.height * scale;
+
+                // Center the image
+                const x = (pdfWidth - width) / 2;
+                const y = (pdfHeight - height) / 2;
+
+                if (i > 0) {
+                    pdf.addPage();
+                }
+
+                pdf.addImage(imgData, file.type === 'image/png' ? 'PNG' : 'JPEG', x, y, width, height);
+            }
+
+            const safeName = fileInput.files.length === 1 ? fileInput.files[0].name.split('.')[0] : 'birlestirilmis-gorseller';
+            pdf.save(`${safeName}.pdf`);
+
+            resultDiv.innerHTML = `<p class="success-msg">Tarayıcı içi dönüşüm başarılı! İndirme başladı.</p>`;
+        } catch (error) {
+            resultDiv.innerHTML = `<p class="error-msg">Tarayıcı dönüşüm hatası: ${error.message}</p>`;
+            console.error(error);
+        } finally {
+            localConvertBtn.disabled = false;
+            localConvertBtn.textContent = 'Tarayıcıda Dönüştür (VPN Uyumlu)';
+            convertBtn.disabled = false;
+            resultDiv.classList.remove('hidden');
+        }
+    });
+
+    function readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(new Error('Dosya okunamadı'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function getImageProperties(dataUrl) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve({ width: img.width, height: img.height });
+            img.onerror = () => reject(new Error('Görsel özellikleri okunamadı'));
+            img.src = dataUrl;
+        });
+    }
 });

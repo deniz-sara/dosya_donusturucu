@@ -32,12 +32,18 @@
                 </select>
             </div>
 
-            <button type="submit" class="convert-btn" id="convertBtn" disabled>Dönüştür</button>
+            <div class="button-group">
+                <button type="submit" class="convert-btn" id="convertBtn" disabled>Dönüştür</button>
+                <button type="button" class="convert-btn local-btn hidden" id="localConvertBtn" disabled>Tarayıcıda
+                    Dönüştür (VPN Uyumlu)</button>
+            </div>
         </form>
 
         <div id="result" class="hidden"></div>
     </div>
 
+    <!-- jsPDF for Local Client-Side Conversion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="script.js"></script>
 </body>
 

@@ -48,7 +48,8 @@ p.subtitle {
     margin-bottom: 1.5rem;
 }
 
-.upload-area:hover, .upload-area.dragover {
+.upload-area:hover,
+.upload-area.dragover {
     border-color: var(--primary);
     background-color: #eef2ff;
 }
@@ -72,7 +73,7 @@ p.subtitle {
 
 label {
     display: block;
-    font-sm;
+    font-size: 0.875rem;
     font-weight: 500;
     margin-bottom: 0.5rem;
 }
@@ -82,28 +83,49 @@ select {
     padding: 0.5rem;
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    margin-bottom: 1rem;
-}
-
-button.convert-btn {
-    background-color: var(--primary);
-    color: white;
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
     width: 100%;
     transition: background-color 0.2s;
 }
 
-button.convert-btn:hover {
+.button-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.convert-btn {
+    flex: 1;
+    background-color: var(--primary);
+    color: white;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.convert-btn:hover {
     background-color: var(--primary-hover);
 }
 
-button.convert-btn:disabled {
+.convert-btn:disabled {
     background-color: #9ca3af;
     cursor: not-allowed;
+}
+
+.local-btn {
+    background-color: #10b981;
+}
+
+.local-btn:hover:not(:disabled) {
+    background-color: #059669;
+}
+
+.success-msg {
+    color: #10b981;
+    font-weight: 500;
 }
 
 #result {
