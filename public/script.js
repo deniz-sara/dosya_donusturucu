@@ -9,9 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const localConvertBtn = document.getElementById('localConvertBtn');
 
     const formatOptions = {
-        'image/png': ['jpg', 'webp'],
-        'image/jpeg': ['png', 'webp'],
-        'image/webp': ['png', 'jpg'],
+        'image/png': ['jpg', 'webp', 'pdf'],
+        'image/jpeg': ['png', 'webp', 'pdf'],
+        'image/webp': ['png', 'jpg', 'pdf'],
         'application/pdf': ['txt', 'docx'],
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['pdf']
     };
@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
             targetFormat.innerHTML = '<option value="pdf" selected>PDF (Birleştir)</option>';
             targetFormat.disabled = false;
             convertBtn.disabled = false;
+            checkLocalSupport(); // VPN butonunu göster
             return;
         }
 
