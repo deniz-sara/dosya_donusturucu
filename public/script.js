@@ -107,7 +107,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData
             });
 
-            const data = await response.json();
+            let data;
+            const textResponse = await response.text();
+
+            try {
+                data = JSON.parse(textResponse);
+            } catch (jsonErr) {
+                throw new Error(`Sunucu Hatası (${response.status}): ${textResponse.substring(0, 150)}...`);
+            }
 
             if (data.success) {
                 resultDiv.innerHTML = `<a href="${data.downloadUrl}" class="success-link" download>⬇️ İndir (${targetFormat.value.toUpperCase()})</a>`;
@@ -115,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resultDiv.innerHTML = `<p class="error-msg">Hata: ${data.message}</p>`;
             }
         } catch (error) {
-            resultDiv.innerHTML = `<p class="error-msg">Sunucu hatası oluştu.</p>`;
+            resultDiv.innerHTML = `<p class="error-msg">Dönüşüm başarısız: ${error.message}</p>`;
             console.error(error);
         } finally {
             convertBtn.disabled = false;

@@ -21,7 +21,9 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
+        // Dosya ismindeki Türkçe karakterleri, boşlukları ve özel sembolleri temizle
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-]/g, '_');
+        cb(null, Date.now() + '-' + safeName);
     }
 });
 
