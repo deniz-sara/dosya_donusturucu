@@ -59,6 +59,21 @@ app.post('/convert', upload.array('files'), async (req, res) => {
     }
 });
 
+// Test route to check if server is reachable without file upload
+app.get('/ping', (req, res) => {
+    res.json({ message: 'Server is alive', cors: 'working' });
+});
+
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('Global Error:', err);
+    res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Internal Server Error',
+        details: err.code || 'UNKNOWN_ERROR'
+    });
 });
