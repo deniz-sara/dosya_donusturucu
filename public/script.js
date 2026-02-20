@@ -187,6 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const imgProps = await getImageProperties(imgData);
 
+                // Draw image through canvas to fix JPEG EXIF orientation issues
+                const canvas = document.createElement('canvas');
+                canvas.width = imgProps.width;
+                canvas.height = imgProps.height;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const imgEl = await loadImageElement(imgData);
+                ctx.drawImage(imgEl, 0, 0);
+                const normalizedData = canvas.toDataURL('image/jpeg', 0.95);
+
                 // Calculate scale to fit within page while maintaining aspect ratio
                 const scale = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
 
@@ -201,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     pdf.addPage();
                 }
 
-                pdf.addImage(imgData, file.type === 'image/png' ? 'PNG' : 'JPEG', x, y, width, height);
+                pdf.addImage(normalizedData, 'JPEG', x, y, width, height);
             }
 
             const safeName = fileInput.files.length === 1 ? fileInput.files[0].name.split('.')[0] : 'birlestirilmis-gorseller';
@@ -233,6 +244,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = new Image();
             img.onload = () => resolve({ width: img.width, height: img.height });
             img.onerror = () => reject(new Error('Görsel özellikleri okunamadı'));
+            img.src = dataUrl;
+        });
+    }
+
+    function loadImageElement(dataUrl) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Görsel yüklenemedi'));
             img.src = dataUrl;
         });
     }
