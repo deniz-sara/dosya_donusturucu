@@ -18,25 +18,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Drag and Drop Events
     dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
-        if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files);
+        if (e.dataTransfer.files.length) {
+            handleFileSelect(e.dataTransfer.files);
+        }
     });
+
     fileInput.addEventListener('change', () => {
-        if (fileInput.files.length) handleFileSelect(fileInput.files);
+        if (fileInput.files.length) {
+            handleFileSelect(fileInput.files);
+        }
     });
 
     function handleFileSelect(files) {
         if (files.length > 1) {
             fileInfo.textContent = `${files.length} dosya seçildi`;
             fileInfo.classList.remove('hidden');
+
+            // Multi-file logic: Only allow PDF merge
             targetFormat.innerHTML = '<option value="pdf" selected>PDF (Birleştir)</option>';
             targetFormat.disabled = false;
             convertBtn.disabled = false;
-            showLocalBtn(true);
+            checkLocalSupport(); // VPN butonunu göster
             return;
         }
 
@@ -44,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInfo.textContent = `Seçilen dosya: ${file.name}`;
         fileInfo.classList.remove('hidden');
 
+        // Populate options based on file type
         targetFormat.innerHTML = '<option value="" disabled selected>Format seçin</option>';
         const availableFormats = formatOptions[file.type];
 
@@ -64,11 +80,21 @@ document.addEventListener('DOMContentLoaded', () => {
             convertBtn.disabled = true;
         }
 
-        showLocalBtn(false); // hide until format selected
+        checkLocalSupport();
     }
 
-    function showLocalBtn(show) {
-        if (show) {
+    function checkLocalSupport() {
+        const isPdfTarget = targetFormat.value === 'pdf';
+        let allImages = true;
+
+        for (let i = 0; i < fileInput.files.length; i++) {
+            if (!fileInput.files[i].type.startsWith('image/')) {
+                allImages = false;
+                break;
+            }
+        }
+
+        if (allImages && isPdfTarget && fileInput.files.length > 0) {
             localConvertBtn.classList.remove('hidden');
             localConvertBtn.disabled = false;
         } else {
@@ -77,23 +103,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    targetFormat.addEventListener('change', () => {
-        if (targetFormat.value && fileInput.files.length > 0) {
-            showLocalBtn(true);
-        }
-    });
+    targetFormat.addEventListener('change', checkLocalSupport);
 
-    // =====================
-    // SERVER CONVERSION
-    // =====================
     convertForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (fileInput.files.length === 0) { alert('Lütfen dosya seçin.'); return; }
-
         const formData = new FormData();
+
+        if (fileInput.files.length === 0) {
+            alert('Lütfen dosya seçin.');
+            return;
+        }
+
+        // Add all files to formData
+        // Note: The backend expects 'files' as the field name for array uploads
         for (let i = 0; i < fileInput.files.length; i++) {
             formData.append('files', fileInput.files[i]);
         }
+
         formData.append('targetFormat', targetFormat.value);
 
         convertBtn.disabled = true;
@@ -102,14 +128,20 @@ document.addEventListener('DOMContentLoaded', () => {
         resultDiv.innerHTML = '';
 
         try {
-            const response = await fetch('/convert', { method: 'POST', body: formData });
+            const response = await fetch('/convert', {
+                method: 'POST',
+                body: formData
+            });
+
             let data;
             const textResponse = await response.text();
+
             try {
                 data = JSON.parse(textResponse);
             } catch (jsonErr) {
                 throw new Error(`Sunucu Hatası (${response.status}): ${textResponse.substring(0, 150)}...`);
             }
+
             if (data.success) {
                 resultDiv.innerHTML = `<a href="${data.downloadUrl}" class="success-link" download>⬇️ İndir (${targetFormat.value.toUpperCase()})</a>`;
             } else {
@@ -125,15 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // =====================
-    // LOCAL (VPN) CONVERSION
-    // =====================
     localConvertBtn.addEventListener('click', async () => {
-        if (fileInput.files.length === 0) { alert('Lütfen dosya seçin.'); return; }
-
-        const fmt = targetFormat.value;
-        const file = fileInput.files[0];
-        const files = fileInput.files;
+        if (fileInput.files.length === 0) {
+            alert('Lütfen dosya seçin.');
+            return;
+        }
 
         localConvertBtn.disabled = true;
         localConvertBtn.textContent = 'Tarayıcıda Dönüştürülüyor...';
@@ -142,26 +170,44 @@ document.addEventListener('DOMContentLoaded', () => {
         resultDiv.innerHTML = '';
 
         try {
-            // Determine which local conversion to run
-            const isImage = (f) => f.type.startsWith('image/');
-            const isPdf = (f) => f.type === 'application/pdf';
-            const isDocx = (f) => f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'p',
+                unit: 'px',
+                format: 'a4'
+            });
 
-            if (isImage(file) && fmt === 'pdf') {
-                await localImagesToPdf(files);
-            } else if (isImage(file) && ['jpg', 'jpeg', 'png', 'webp'].includes(fmt)) {
-                await localImageToImage(file, fmt);
-            } else if (isPdf(file) && fmt === 'txt') {
-                await localPdfToTxt(file);
-            } else if (isPdf(file) && fmt === 'docx') {
-                await localPdfToDocx(file);
-            } else if (isDocx(file) && fmt === 'pdf') {
-                await localDocxToPdf(file);
-            } else {
-                throw new Error('Bu dönüşüm türü şu an tarayıcıda desteklenmiyor.');
+            // A4 size in px (at 72 dpi) is roughly 595 x 842. We'll use jsPDF's internal sizing
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+
+            for (let i = 0; i < fileInput.files.length; i++) {
+                const file = fileInput.files[i];
+                const imgData = await readFileAsDataURL(file);
+
+                const imgProps = await getImageProperties(imgData);
+
+                // Calculate scale to fit within page while maintaining aspect ratio
+                const scale = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
+
+                const width = imgProps.width * scale;
+                const height = imgProps.height * scale;
+
+                // Center the image
+                const x = (pdfWidth - width) / 2;
+                const y = (pdfHeight - height) / 2;
+
+                if (i > 0) {
+                    pdf.addPage();
+                }
+
+                pdf.addImage(imgData, file.type === 'image/png' ? 'PNG' : 'JPEG', x, y, width, height);
             }
 
-            resultDiv.innerHTML = `<p class="success-msg">✅ Tarayıcı içi dönüşüm başarılı! İndirme başladı.</p>`;
+            const safeName = fileInput.files.length === 1 ? fileInput.files[0].name.split('.')[0] : 'birlestirilmis-gorseller';
+            pdf.save(`${safeName}.pdf`);
+
+            resultDiv.innerHTML = `<p class="success-msg">Tarayıcı içi dönüşüm başarılı! İndirme başladı.</p>`;
         } catch (error) {
             resultDiv.innerHTML = `<p class="error-msg">Tarayıcı dönüşüm hatası: ${error.message}</p>`;
             console.error(error);
@@ -173,159 +219,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // =====================
-    // LOCAL CONVERSION HELPERS
-    // =====================
-
-    // Image(s) → PDF
-    async function localImagesToPdf(files) {
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-
-        for (let i = 0; i < files.length; i++) {
-            const imgData = await readFileAsDataURL(files[i]);
-            const imgProps = await getImageDimensions(imgData);
-            const scale = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
-            const width = imgProps.width * scale;
-            const height = imgProps.height * scale;
-            const x = (pdfWidth - width) / 2;
-            const y = (pdfHeight - height) / 2;
-            if (i > 0) pdf.addPage();
-            const imgType = files[i].type === 'image/png' ? 'PNG' : 'JPEG';
-            pdf.addImage(imgData, imgType, x, y, width, height);
-        }
-        const name = files.length === 1 ? files[0].name.split('.')[0] : 'birlesmis';
-        pdf.save(`${name}.pdf`);
-    }
-
-    // Image → Image (format conversion via Canvas)
-    async function localImageToImage(file, fmt) {
-        const imgData = await readFileAsDataURL(file);
-        const img = await loadImage(imgData);
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (fmt === 'jpg' || fmt === 'jpeg') {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-        ctx.drawImage(img, 0, 0);
-        const mimeType = fmt === 'png' ? 'image/png' : fmt === 'webp' ? 'image/webp' : 'image/jpeg';
-        canvas.toBlob((blob) => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${file.name.split('.')[0]}.${fmt}`;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }, mimeType, 0.95);
-    }
-
-    // PDF → TXT
-    async function localPdfToTxt(file) {
-        const arrayBuffer = await readFileAsArrayBuffer(file);
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
-            fullText += `--- Sayfa ${i} ---\n${pageText}\n\n`;
-        }
-        downloadText(fullText, `${file.name.split('.')[0]}.txt`);
-    }
-
-    // PDF → DOCX
-    async function localPdfToDocx(file) {
-        const arrayBuffer = await readFileAsArrayBuffer(file);
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            fullText += textContent.items.map(item => item.str).join(' ') + '\n\n';
-        }
-
-        const { Document, Packer, Paragraph, TextRun } = window.docx;
-        const paragraphs = fullText.split('\n').map(line =>
-            new Paragraph({ children: [new TextRun(line || ' ')] })
-        );
-        const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
-        const blob = await Packer.toBlob(doc);
-        downloadBlob(blob, `${file.name.split('.')[0]}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    }
-
-    // DOCX → PDF
-    async function localDocxToPdf(file) {
-        const arrayBuffer = await readFileAsArrayBuffer(file);
-        const result = await mammoth.convertToHtml({ arrayBuffer });
-        const html = `<html><head><style>body{font-family:Arial,sans-serif;line-height:1.6;padding:20px;}</style></head><body>${result.value}</body></html>`;
-
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-        await new Promise((resolve, reject) => {
-            pdf.html(html, {
-                callback: (doc) => { doc.save(`${file.name.split('.')[0]}.pdf`); resolve(); },
-                x: 15, y: 15, width: 560, windowWidth: 800
-            });
-        });
-    }
-
-    // =====================
-    // UTILITY FUNCTIONS
-    // =====================
     function readFileAsDataURL(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = () => reject(new Error('Dosya okunamadı'));
+            reader.onerror = (e) => reject(new Error('Dosya okunamadı'));
             reader.readAsDataURL(file);
         });
     }
 
-    function readFileAsArrayBuffer(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = () => reject(new Error('Dosya okunamadı'));
-            reader.readAsArrayBuffer(file);
-        });
-    }
-
-    function getImageDimensions(dataUrl) {
+    function getImageProperties(dataUrl) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve({ width: img.width, height: img.height });
-            img.onerror = () => reject(new Error('Görsel boyutları okunamadı'));
+            img.onerror = () => reject(new Error('Görsel özellikleri okunamadı'));
             img.src = dataUrl;
         });
-    }
-
-    function loadImage(dataUrl) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error('Görsel yüklenemedi'));
-            img.src = dataUrl;
-        });
-    }
-
-    function downloadText(text, filename) {
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        downloadBlob(blob, filename, 'text/plain');
-    }
-
-    function downloadBlob(blob, filename, mimeType) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 });
